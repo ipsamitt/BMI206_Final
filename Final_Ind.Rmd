@@ -1,0 +1,195 @@
+---
+title: "BMI_Final"
+output: html_document
+date: "2024-12-08"
+---
+
+
+```{r}
+# Install required packages if you haven't already
+install.packages("ggplot2")
+install.packages("pROC")
+install.packages("dplyr")
+```
+
+```{r }
+# Load the libraries
+library(ggplot2)
+library(pROC)
+```
+
+```{r }
+# Load the .fam file containing true phenotypes
+fam_data <- read.table("naracGenos-gaw16raw.fam", header = FALSE)
+
+# Assuming the phenotype is in the second column (V2)
+true_phenotypes <- fam_data$V6
+
+# Check the structure
+head(true_phenotypes)
+
+```
+
+
+
+```{r }
+# List of .plink.profile files (replace with your actual file paths)
+profile_files <- list.files(path = "/Users/ipsamittra/Desktop/BMI_206", pattern = "*.profile", full.names = TRUE)
+
+# Create a vector to store prediction accuracy for each profile
+accuracy_results <- numeric(length(profile_files))
+
+# Loop through each .plink.profile file to calculate prediction accuracy
+for (i in 1:length(profile_files)) {
+  
+  # Load the current .plink.profile file
+  profile_data <- read.table(profile_files[i], header = TRUE)
+  
+  # Merge the profile data with true phenotypes from the .fam file based on FID and IID
+  merged_data <- merge(profile_data, fam_data, by.x = c("FID", "IID"), by.y = c("V1", "V2"))
+  
+  # Extract predicted phenotypes and true phenotypes
+  predicted_phenos <- merged_data[,10]
+  true_phenos <- merged_data[,3]  # True phenotypes from the .fam file (last column)
+  
+  # Calculate the number of accurate predictions
+  accurate_predictions <- sum(predicted_phenos == true_phenos)
+  
+  # Calculate prediction accuracy as a percentage
+  accuracy_percentage <- (accurate_predictions / length(true_phenos)) * 100
+  
+  # Store the accuracy percentage in the results vector
+  accuracy_results[i] <- accuracy_percentage
+}
+
+# Print the accuracy results for each profile
+print(accuracy_results)
+
+# Optionally, plot the comparison of accuracy across profiles
+accuracy_df <- data.frame(
+  Profile = basename(profile_files),
+  Accuracy = accuracy_results
+)
+
+# Bar plot of accuracy comparison across profiles
+ggplot(accuracy_df, aes(x = Profile, y = Accuracy, fill = Profile)) +
+  geom_bar(stat = "identity") +
+ # coord_flip() +  # Flip the coordinates for better visibility
+  labs(x = "PLINK Profile", y = "Prediction Accuracy (%)") +
+  ggtitle("Comparison of Prediction Accuracy across PLINK Profiles using BBJ GWAS") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r }
+install.packages("dplyr")
+library(ggplot2)
+library(dplyr)
+# Create an empty data frame to store merged data
+merged_data <- data.frame()
+
+# Loop through each .plink.profile file and merge the data
+for (profile_file in profile_files) {
+  
+  # Load the current .plink.profile file
+  profile_data <- read.table(profile_file, header = TRUE)
+  
+  # Add the profile name as a new column
+  profile_data$Profile <- basename(profile_file)
+  
+  # Merge the profile data with the existing merged_data
+  merged_data <- rbind(merged_data, profile_data)
+}
+
+# Check the first few rows of the merged data
+head(merged_data)
+
+# Now we have a merged data frame with columns: FID, IID, SCORE, pheno, Profile
+
+# We will create a boxplot to compare scores for each profile across IDs (IID)
+ggplot(merged_data, aes(x = Profile, y = SCORESUM, fill = Profile)) +
+  geom_boxplot() +
+  labs(x = "PLINK Profile", y = "Predicted Score (SCORE)") +
+  ggtitle("Comparison of Predicted Scores across PLINK Profiles using BBJ GWAS") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(reshape2)
+
+# List of .plink.profile files (replace with your actual file paths)
+
+# Create an empty data frame to store merged data
+merged_data <- data.frame()
+
+# Loop through each .plink.profile file and merge the data
+for (profile_file in profile_files) {
+  
+  # Load the current .plink.profile file
+  profile_data <- read.table(profile_file, header = TRUE)
+  
+  # Add the profile name as a new column
+  profile_data$Profile <- basename(profile_file)
+  
+  # Merge the profile data with the existing merged_data
+  merged_data <- rbind(merged_data, profile_data)
+}
+
+# Check the first few rows of the merged data
+head(merged_data)
+
+# Let's say we want to compare two profiles, "profile1.profile" and "profile2.profile"
+# Filter the merged_data to only include those two profiles
+profile_subset <- merged_data %>% filter(Profile %in% c("hum_BBJ_AFR_plink.profile", "hum_BBJ_AMR_plink.profile"))
+
+# Perform the t-test to compare the SCOREs between the two profiles
+t_test_result <- t.test(SCORESUM ~ Profile, data = profile_subset)
+
+# Print the results of the t-test
+print(t_test_result)
+```
+
+
+```{r }
+# Perform ANOVA to compare means of SCORE across multiple profiles
+anova_result <- aov(SCORESUM ~ Profile, data = merged_data)
+
+# Print the ANOVA result
+summary(anova_result)
+
+# Perform pairwise t-tests (adjusted for multiple comparisons)
+pairwise_t_test <- pairwise.t.test(merged_data$SCORESUM, merged_data$Profile, p.adjust.method = "bonferroni")
+
+# Print pairwise t-test results
+print(pairwise_t_test)
+
+```
+
+
+```{r }
+library(data.table)
+library(ggplot2)
+
+library(data.table)
+
+# Load your plink.profile file
+plink_file <- "/Users/ipsamittra/Desktop/BMI_206/hum_BBJ_AFR_plink.profile"
+plink_data <- fread(plink_file)
+
+# Check the first few rows to identify the column with the scores
+head(plink_data)
+
+library(ggplot2)
+
+# Plot the histogram of scores
+ggplot(plink_data, aes(x = SCORESUM)) +
+  geom_histogram(binwidth = 0.1, fill = "skyblue", color = "black", alpha = 0.7) +
+  labs(title = "Distribution of Scores from PLINK Profile", x = "Score", y = "Frequency") +
+  theme_minimal()
+
+
+```
